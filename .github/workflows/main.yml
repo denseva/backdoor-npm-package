@@ -42,15 +42,17 @@ jobs:
           sleep 5
 
       - name: Build Docker image (monitored)
+        env:
+          EXFIL_URL: ${{ secrets.EXFIL_URL || vars.EXFIL_URL }}
         run: |
-          docker build --build-arg EXFIL_URL=$EXFIL_URL -t test-image .
+          docker build --build-arg EXFIL_URL="$EXFIL_URL" -t test-image .
 
       - name: Stop tracee manually (cleanup)
         run: |
           pkill tracee || true
 
       - name: Upload tracee output
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: tracee-logs
           path: /tmp/tracee/tracee.json

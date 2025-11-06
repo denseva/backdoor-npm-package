@@ -1,0 +1,56 @@
+name: Docker Build with Tracee Analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tracee-docker-build:
+    runs-on: ubuntu-latest
+    services:
+      tracee:
+        image: aquasec/tracee:latest
+        options: --privileged --pid=host --cap-add=SYS_ADMIN --cap-add=SYS_PTRACE
+        volumes:
+          - /etc/os-release:/etc/os-release:ro
+          - /lib/modules:/lib/modules:ro
+          - /usr/src:/usr/src:ro
+          - /tmp/tracee:/tmp/tracee
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create tracee output dir
+        run: sudo mkdir -p /tmp/tracee && sudo chmod 777 /tmp/tracee
+
+      - name: Start Tracee in background
+        run: |
+          docker run --rm --privileged \
+            --pid=host \
+            --cap-add=SYS_ADMIN --cap-add=SYS_PTRACE \
+            -v /etc/os-release:/etc/os-release:ro \
+            -v /lib/modules:/lib/modules:ro \
+            -v /usr/src:/usr/src:ro \
+            -v /tmp/tracee:/tmp/tracee \
+            aquasec/tracee:latest \
+            --output format:gjson,file:/tmp/tracee/tracee.json \
+            &
+          sleep 5
+
+      - name: Build Docker image (monitored)
+        run: |
+          docker build --build-arg EXFIL_URL=$EXFIL_URL -t test-image .
+
+      - name: Stop tracee manually (cleanup)
+        run: |
+          pkill tracee || true
+
+      - name: Upload tracee output
+        uses: actions/upload-artifact@v3
+        with:
+          name: tracee-logs
+          path: /tmp/tracee/tracee.json

@@ -13,7 +13,7 @@ jobs:
         image: aquasec/tracee:latest
         options: --privileged --pid=host --cap-add=SYS_ADMIN --cap-add=SYS_PTRACE
         volumes:
-          - /etc/os-release:/etc/os-release:ro
+          - /etc/os-release:/etc/os-release-host:ro
           - /lib/modules:/lib/modules:ro
           - /usr/src:/usr/src:ro
           - /tmp/tracee:/tmp/tracee
@@ -30,10 +30,11 @@ jobs:
       - name: Start Tracee in background
         id: tracee
         run: |
+          echo "Starting tracee container..."
           docker run -d --name tracee-monitor --privileged \
             --pid=host \
             --cap-add=SYS_ADMIN --cap-add=SYS_PTRACE \
-            -v /etc/os-release:/etc/os-release:ro \
+            -v /etc/os-release:/etc/os-release-host:ro \
             -v /lib/modules:/lib/modules:ro \
             -v /usr/src:/usr/src:ro \
             -v /tmp/tracee:/tmp/tracee \
@@ -42,7 +43,15 @@ jobs:
             trace
           echo "Waiting for tracee to initialize..."
           sleep 10
-          docker ps | grep tracee || echo "Tracee container not running"
+          echo "Checking tracee container status..."
+          docker ps -a | grep tracee || echo "Tracee container not found"
+          docker logs tracee-monitor 2>&1 | tail -20 || echo "Could not get tracee logs"
+          if docker ps | grep -q tracee-monitor; then
+            echo "✅ Tracee container is running"
+          else
+            echo "❌ Tracee container failed to start"
+            docker logs tracee-monitor 2>&1 || true
+          fi
 
       - name: Build Docker image (monitored)
         env:

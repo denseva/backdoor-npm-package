@@ -39,8 +39,7 @@ jobs:
             -v /usr/src:/usr/src:ro \
             -v /tmp/tracee:/tmp/tracee \
             aquasec/tracee:latest \
-            --output json \
-            --output file:/tmp/tracee/tracee.json
+            --output json
           echo "Waiting for tracee to initialize..."
           sleep 10
           echo "Checking tracee container status..."

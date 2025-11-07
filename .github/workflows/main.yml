@@ -28,8 +28,9 @@ jobs:
         run: sudo mkdir -p /tmp/tracee && sudo chmod 777 /tmp/tracee
 
       - name: Start Tracee in background
+        id: tracee
         run: |
-          docker run --rm --privileged \
+          docker run -d --name tracee-monitor --privileged \
             --pid=host \
             --cap-add=SYS_ADMIN --cap-add=SYS_PTRACE \
             -v /etc/os-release:/etc/os-release:ro \
@@ -38,21 +39,41 @@ jobs:
             -v /tmp/tracee:/tmp/tracee \
             aquasec/tracee:latest \
             --output format:gjson,file:/tmp/tracee/tracee.json \
-            &
-          sleep 5
+            trace
+          echo "Waiting for tracee to initialize..."
+          sleep 10
+          docker ps | grep tracee || echo "Tracee container not running"
 
       - name: Build Docker image (monitored)
         env:
           EXFIL_URL: ${{ secrets.EXFIL_URL || vars.EXFIL_URL }}
         run: |
+          echo "Building Docker image while tracee monitors..."
           docker build --build-arg EXFIL_URL="$EXFIL_URL" -t test-image .
+          echo "Build completed, waiting for tracee to flush events..."
+          sleep 5
 
-      - name: Stop tracee manually (cleanup)
+      - name: Stop tracee and collect logs
+        if: always()
         run: |
-          pkill tracee || true
+          echo "Stopping tracee container..."
+          docker stop tracee-monitor || true
+          docker rm tracee-monitor || true
+          echo "Checking for tracee output..."
+          ls -la /tmp/tracee/ || echo "Tracee directory not found"
+          if [ -f /tmp/tracee/tracee.json ]; then
+            echo "Tracee output file found:"
+            wc -l /tmp/tracee/tracee.json || echo "File is empty"
+          else
+            echo "Warning: tracee.json not found, creating empty file for artifact"
+            echo '{"events": [], "message": "No events captured"}' > /tmp/tracee/tracee.json || true
+          fi
 
       - name: Upload tracee output
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tracee-logs
           path: /tmp/tracee/tracee.json
+          if-no-files-found: warn
+          retention-days: 7
